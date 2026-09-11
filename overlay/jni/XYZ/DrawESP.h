@@ -475,10 +475,6 @@ void NewDrawESP(ImDrawList *draw, float screenWidth, float screenHeight) {
             continue;
         }
         if (MonsterToString(new_mID) == "") continue;
-        auto m_bDeath = *(bool *) ((uintptr_t)values + EntityBase_m_bDeath());
-        if (m_bDeath) continue;
-        auto m_bSameCampType = *(bool *) ((uintptr_t)values + EntityBase_m_bSameCampType());
-        if (m_bSameCampType) continue;
         auto bShowEntityLayer = *(bool *) ((uintptr_t)values + ShowEntity_bShowEntityLayer);
         auto m_Hp = *(int *) ((uintptr_t)values + EntityBase_m_Hp());
         auto m_HpMax = *(int *) ((uintptr_t)values + EntityBase_m_HpMax());
