@@ -588,6 +588,7 @@ void NewDrawESP(ImDrawList *draw, float screenWidth, float screenHeight) {
     }
 
     /* Minions / Soldiers on Minimap (hidden in fog) */
+    static auto GetAllEntities_fn = (List<void **> *(*)(void *))(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "BattleManager", "GetAllEntities", 0));
     if (GetAllEntities_fn && Config.MinimapIcon && battleManager) {
         auto allEntities = GetAllEntities_fn((void *)battleManager);
         if (allEntities) {
