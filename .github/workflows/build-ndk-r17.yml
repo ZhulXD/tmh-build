@@ -4,11 +4,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repo (with 2.1.95 overlays)
+        uses: actions/checkout@v4
+
       - name: Install legacy libtinfo5 / libncurses5 compatibility
         run: |
           sudo apt-get update || true
           sudo apt-get install -y libncurses5 libtinfo5 2>/dev/null || {
-            sudo find /usr/lib -name "libtinfo.so*" -o -name "libncurses.so*"
             TINFO6=$(sudo find /usr/lib -name "libtinfo.so.6*" | head -n 1)
             [ -n "$TINFO6" ] && sudo ln -sf "$TINFO6" /usr/lib/x86_64-linux-gnu/libtinfo.so.5 || true
             NCURSES6=$(sudo find /usr/lib -name "libncurses.so.6*" | head -n 1)
@@ -28,6 +30,12 @@ jobs:
           git clone --depth 1 https://github.com/anggorodhanumurti/themaphack.git tmh
           cd tmh
           git log -n 1 --oneline
+
+      - name: Overlay updated 2.1.95.12053 offsets and getters
+        run: |
+          cp -r overlay/jni/* tmh/jni/
+          echo "Overlaid diff in themaphack:"
+          git -C tmh diff --stat
 
       - name: Build with NDK r17c (armeabi-v7a)
         run: |
