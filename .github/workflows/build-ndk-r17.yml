@@ -4,6 +4,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Install legacy libtinfo5 / libncurses5 compatibility
+        run: |
+          sudo apt-get update || true
+          sudo apt-get install -y libncurses5 libtinfo5 2>/dev/null || {
+            sudo find /usr/lib -name "libtinfo.so*" -o -name "libncurses.so*"
+            TINFO6=$(sudo find /usr/lib -name "libtinfo.so.6*" | head -n 1)
+            [ -n "$TINFO6" ] && sudo ln -sf "$TINFO6" /usr/lib/x86_64-linux-gnu/libtinfo.so.5 || true
+            NCURSES6=$(sudo find /usr/lib -name "libncurses.so.6*" | head -n 1)
+            [ -n "$NCURSES6" ] && sudo ln -sf "$NCURSES6" /usr/lib/x86_64-linux-gnu/libncurses.so.5 || true
+          }
+          ls -la /usr/lib/x86_64-linux-gnu/libtinfo* || true
+
       - name: Download and unpack NDK r17c
         run: |
           curl -sL -o ndk.zip https://dl.google.com/android/repository/android-ndk-r17c-linux-x86_64.zip
