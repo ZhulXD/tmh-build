@@ -447,7 +447,8 @@ void NewDrawESP(ImDrawList *draw, float screenWidth, float screenHeight) {
         // Minion / Soldier check (pure memory read - zero deadlock risk):
         bool isSoldier = *(bool *) ((uintptr_t)values + 0x68);
         bool isCatapult = *(bool *) ((uintptr_t)values + 0x6b);
-        if (isSoldier || isCatapult) {
+        int iType = *(int *) ((uintptr_t)values + 0x80);
+        if (isSoldier || isCatapult || iType == 2 || iType == 4) {
             auto m_bSameCampType = *(bool *) ((uintptr_t)values + EntityBase_m_bSameCampType());
             if (m_bSameCampType) continue; // Skip allied minions
             auto m_bDeath = *(bool *) ((uintptr_t)values + EntityBase_m_bDeath());
@@ -455,12 +456,13 @@ void NewDrawESP(ImDrawList *draw, float screenWidth, float screenHeight) {
             // Minion rule: do NOT show if in sight / visible
             auto canSight = *(bool *) ((uintptr_t)values + EntityBase_canSight());
             if (canSight) continue;
-            // Hidden minion in fog: show on minimap overlay
+            // Hidden minion in fog: show on minimap overlay with correct m_EntityCampType orientation
             if (Config.MinimapIcon) {
                 auto _Position = *(Vector3 *) ((uintptr_t)values + ShowEntity__Position());
                 auto m_EntityCampType = *(int *) ((uintptr_t)values + EntityBase_m_EntityCampType());
-                auto minimapPos = WorldToMinimap(localCamp, _Position);
-                draw->AddCircleFilled(ImVec2(minimapPos.x, minimapPos.y), 3.0f, IM_COL32(255, 75, 75, 230));
+                auto minimapPos = WorldToMinimap(m_EntityCampType, _Position);
+                draw->AddCircleFilled(ImVec2(minimapPos.x, minimapPos.y), 3.5f, IM_COL32(255, 40, 40, 240));
+                draw->AddCircle(ImVec2(minimapPos.x, minimapPos.y), 3.5f, IM_COL32(255, 255, 255, 200), 0, 1.0f);
             }
             continue;
         }
@@ -579,34 +581,59 @@ void NewDrawESP(ImDrawList *draw, float screenWidth, float screenHeight) {
 
 
 
-    /* Minions / Soldiers on Minimap (Iterate m_ShowMonsters List where soldiers actually live) */
-    auto m_ShowMonsters_List = *(List<void **> **) ((uintptr_t)battleManager + BattleManager_m_ShowMonsters());
+    /* Minions / Soldiers on Minimap (Iterate m_ShowMonsters List with proper List<uintptr_t> type) */
+    auto m_ShowMonsters_List = *(List<uintptr_t> **) ((uintptr_t)battleManager + BattleManager_m_ShowMonsters());
     if (m_ShowMonsters_List && Config.MinimapIcon) {
         for (int i = 0; i < m_ShowMonsters_List->getSize(); i++) {
-            auto entity = m_ShowMonsters_List->getItems()[i];
+            uintptr_t entity = m_ShowMonsters_List->getItems()[i];
             if (!entity) continue;
             
-            // 1. Minion / Soldier check:
-            int iType = *(int *) ((uintptr_t)entity + 0x80); // f_ShowEntity_m_iType (2 = Soldier, 4 = Catapult)
-            bool isSoldier = *(bool *) ((uintptr_t)entity + 0x68); // f_ShowEntity_IsSoldier
-            bool isCatapult = *(bool *) ((uintptr_t)entity + 0x6b); // f_ShowEntity_IsCatapult
+            int iType = *(int *) (entity + 0x80); // f_ShowEntity_m_iType (2 = Soldier, 4 = Catapult)
+            bool isSoldier = *(bool *) (entity + 0x68); // f_ShowEntity_IsSoldier
+            bool isCatapult = *(bool *) (entity + 0x6b); // f_ShowEntity_IsCatapult
             
             if (iType == 2 || iType == 4 || isSoldier || isCatapult) {
-                auto m_bSameCampType = *(bool *) ((uintptr_t)entity + EntityBase_m_bSameCampType());
+                auto m_bSameCampType = *(bool *) (entity + EntityBase_m_bSameCampType());
                 if (m_bSameCampType) continue; // Skip allied minions
                 
-                auto m_bDeath = *(bool *) ((uintptr_t)entity + EntityBase_m_bDeath());
+                auto m_bDeath = *(bool *) (entity + EntityBase_m_bDeath());
                 if (m_bDeath) continue;
                 
-                // User requirement: DO NOT show minion if in sight / visible
-                auto canSight = *(bool *) ((uintptr_t)entity + EntityBase_canSight());
+                // Minion rule: DO NOT show if in sight / visible
+                auto canSight = *(bool *) (entity + EntityBase_canSight());
                 if (canSight) continue; // Skip if in sight!
                 
-                // Show minion hidden in fog on minimap as red circle
-                auto _Position = *(Vector3 *) ((uintptr_t)entity + ShowEntity__Position());
-                auto minimapPos = WorldToMinimap(localCamp, _Position);
-                draw->AddCircleFilled(ImVec2(minimapPos.x, minimapPos.y), 3.5f, IM_COL32(255, 60, 60, 240));
-                draw->AddCircle(ImVec2(minimapPos.x, minimapPos.y), 3.5f, IM_COL32(0, 0, 0, 200), 0, 1.0f);
+                // Show minion hidden in fog on minimap with correct m_EntityCampType orientation
+                auto _Position = *(Vector3 *) (entity + ShowEntity__Position());
+                auto m_EntityCampType = *(int *) (entity + EntityBase_m_EntityCampType());
+                auto minimapPos = WorldToMinimap(m_EntityCampType, _Position);
+                draw->AddCircleFilled(ImVec2(minimapPos.x, minimapPos.y), 3.5f, IM_COL32(255, 40, 40, 240));
+                draw->AddCircle(ImVec2(minimapPos.x, minimapPos.y), 3.5f, IM_COL32(255, 255, 255, 200), 0, 1.0f);
+            }
+        }
+    }
+
+    /* Also check m_ShowPlayerSummons (offset 0x60) for special soldiers/catapults */
+    auto m_ShowSummons_List = *(List<uintptr_t> **) ((uintptr_t)battleManager + 0x60);
+    if (m_ShowSummons_List && Config.MinimapIcon) {
+        for (int i = 0; i < m_ShowSummons_List->getSize(); i++) {
+            uintptr_t entity = m_ShowSummons_List->getItems()[i];
+            if (!entity) continue;
+            int iType = *(int *) (entity + 0x80);
+            bool isSoldier = *(bool *) (entity + 0x68);
+            bool isCatapult = *(bool *) (entity + 0x6b);
+            if (iType == 2 || iType == 4 || isSoldier || isCatapult) {
+                auto m_bSameCampType = *(bool *) (entity + EntityBase_m_bSameCampType());
+                if (m_bSameCampType) continue;
+                auto m_bDeath = *(bool *) (entity + EntityBase_m_bDeath());
+                if (m_bDeath) continue;
+                auto canSight = *(bool *) (entity + EntityBase_canSight());
+                if (canSight) continue;
+                auto _Position = *(Vector3 *) (entity + ShowEntity__Position());
+                auto m_EntityCampType = *(int *) (entity + EntityBase_m_EntityCampType());
+                auto minimapPos = WorldToMinimap(m_EntityCampType, _Position);
+                draw->AddCircleFilled(ImVec2(minimapPos.x, minimapPos.y), 3.5f, IM_COL32(255, 40, 40, 240));
+                draw->AddCircle(ImVec2(minimapPos.x, minimapPos.y), 3.5f, IM_COL32(255, 255, 255, 200), 0, 1.0f);
             }
         }
     }
@@ -670,7 +697,8 @@ void NewDrawESP(ImDrawList *draw, float screenWidth, float screenHeight) {
         */
         
         if (Config.MinimapIcon) {
-            auto minimapPos = WorldToMinimap(localCamp, _Position);
+            auto m_EntityCampType = *(int *) ((uintptr_t)values + EntityBase_m_EntityCampType());
+            auto minimapPos = WorldToMinimap(m_EntityCampType, _Position);
             DrawIconHero(ImVec2(minimapPos.x, minimapPos.y), m_ID, m_Hp, m_HpMax);
         }
 		
