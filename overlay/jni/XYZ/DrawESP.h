@@ -308,41 +308,7 @@ DefineHook(void, UpdateMapHack, (void * pThis)) {
                         }
                     }
                 }
-                // --- Minion / Soldier maphack overlay ---
-                static auto GetAllEntities_fn = (List<void **> *(*)(void *))(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "BattleManager", "GetAllEntities", 0));
-                if (GetAllEntities_fn) {
-                    auto allEntities = GetAllEntities_fn(BattleManager_Instance);
-                    if (allEntities) {
-                        for (int i = 0; i < allEntities->getSize(); i++) {
-                            auto entity = allEntities->getItems()[i];
-                            if (!entity) continue;
-                            
-                            // Check if Soldier (0x68) or Catapult (0x6b)
-                            bool isSoldier = *(bool *)((uintptr_t)entity + 0x68);
-                            bool isCatapult = *(bool *)((uintptr_t)entity + 0x6b);
-                            if (!isSoldier && !isCatapult) continue;
-                            
-                            auto m_bSameCampType = *(bool *) ((uintptr_t)entity + EntityBase_m_bSameCampType());
-                            if (m_bSameCampType) continue;
-                            
-                            auto m_bDeath = *(bool *) ((uintptr_t)entity + EntityBase_m_bDeath());
-                            if (m_bDeath) continue;
-                            
-                            // Minion: do NOT show if in sight / visible
-                            auto canSight = *(bool *) ((uintptr_t)entity + EntityBase_canSight());
-                            if (canSight) continue;
-                            
-                            // Hidden minion in fog: show in overlay maphack
-                            auto m_uGuid = *(int *) ((uintptr_t)entity + EntityBase_m_uGuid());
-                            auto _Position = *(Vector3 *) ((uintptr_t)entity + ShowEntity__Position());
-                            
-                            auto SetMapEntityIconPos = (void (*)(void *, Vector3, bool, bool)) (BattleBridge_SetMapEntityIconPos);
-                            if (SetMapEntityIconPos) {
-                                SetMapEntityIconPos(BattleBridge_Instance, _Position, m_uGuid, true);
-                            }
-                        }
-                    }
-                }
+
 
                 
             }
@@ -476,6 +442,28 @@ void NewDrawESP(ImDrawList *draw, float screenWidth, float screenHeight) {
         auto keys = m_dicMonsterShow->getKeys()[i];
         auto values = m_dicMonsterShow->getValues()[i];
         if (!keys || !values) continue;
+
+        // Minion / Soldier check (pure memory read - zero deadlock risk):
+        bool isSoldier = *(bool *) ((uintptr_t)values + 0x68);
+        bool isCatapult = *(bool *) ((uintptr_t)values + 0x6b);
+        if (isSoldier || isCatapult) {
+            auto m_bSameCampType = *(bool *) ((uintptr_t)values + EntityBase_m_bSameCampType());
+            if (m_bSameCampType) continue; // Skip allied minions
+            auto m_bDeath = *(bool *) ((uintptr_t)values + EntityBase_m_bDeath());
+            if (m_bDeath) continue;
+            // Minion rule: do NOT show if in sight / visible
+            auto canSight = *(bool *) ((uintptr_t)values + EntityBase_canSight());
+            if (canSight) continue;
+            // Hidden minion in fog: show on minimap overlay
+            if (Config.MinimapIcon) {
+                auto _Position = *(Vector3 *) ((uintptr_t)values + ShowEntity__Position());
+                auto m_EntityCampType = *(int *) ((uintptr_t)values + EntityBase_m_EntityCampType());
+                auto minimapPos = WorldToMinimap(m_EntityCampType, _Position);
+                draw->AddCircleFilled(ImVec2(minimapPos.x, minimapPos.y), 3.0f, IM_COL32(255, 75, 75, 230));
+            }
+            continue;
+        }
+
         auto m_ID = *(int *) ((uintptr_t)values + EntityBase_m_ID());
 		auto new_mID = *(int *) ((uintptr_t)values + ShowEntity_m_id());
         if (!bMonster(new_mID)) continue;
@@ -587,34 +575,7 @@ void NewDrawESP(ImDrawList *draw, float screenWidth, float screenHeight) {
         }
     }
 
-    /* Minions / Soldiers on Minimap (hidden in fog) */
-    static auto GetAllEntities_fn = (List<void **> *(*)(void *))(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "BattleManager", "GetAllEntities", 0));
-    if (GetAllEntities_fn && Config.MinimapIcon && battleManager) {
-        auto allEntities = GetAllEntities_fn((void *)battleManager);
-        if (allEntities) {
-            for (int i = 0; i < allEntities->getSize(); i++) {
-                auto entity = allEntities->getItems()[i];
-                if (!entity) continue;
-                bool isSoldier = *(bool *)((uintptr_t)entity + 0x68);
-                bool isCatapult = *(bool *)((uintptr_t)entity + 0x6b);
-                if (!isSoldier && !isCatapult) continue;
-                auto m_bSameCampType = *(bool *) ((uintptr_t)entity + EntityBase_m_bSameCampType());
-                if (m_bSameCampType) continue;
-                auto m_bDeath = *(bool *) ((uintptr_t)entity + EntityBase_m_bDeath());
-                if (m_bDeath) continue;
-                
-                // Do not show minion if in sight
-                auto canSight = *(bool *) ((uintptr_t)entity + EntityBase_canSight());
-                if (canSight) continue;
-                
-                // Show minion hidden in fog on minimap as distinct red blip
-                auto _Position = *(Vector3 *) ((uintptr_t)entity + ShowEntity__Position());
-                auto m_EntityCampType = *(int *) ((uintptr_t)entity + EntityBase_m_EntityCampType());
-                auto minimapPos = WorldToMinimap(m_EntityCampType, _Position);
-                draw->AddCircleFilled(ImVec2(minimapPos.x, minimapPos.y), 3.5f, IM_COL32(255, 70, 70, 220));
-            }
-        }
-    }
+
 
     /*enemy*/
 	
@@ -674,11 +635,7 @@ void NewDrawESP(ImDrawList *draw, float screenWidth, float screenHeight) {
             draw->AddText(NULL, 22, {rootPosVec2.x - (textSize.x / 2), rootPosVec2.y + 40}, IM_COL32(255, 255, 255, 255), mConfigi.c_str());
         */
         
-        if (Config.MinimapIcon && m_ID == 53 && AttachIconDone) {
-            auto m_EntityCampType = *(int *) ((uintptr_t)values + EntityBase_m_EntityCampType());
-            auto minimapPos = WorldToMinimap(m_EntityCampType, _Position);
-            DrawIconHero(ImVec2(minimapPos.x, minimapPos.y), m_ID, m_Hp, m_HpMax);
-        } else if (Config.MinimapIcon && !bShowEntityLayer && AttachIconDone) {
+        if (Config.MinimapIcon) {
             auto m_EntityCampType = *(int *) ((uintptr_t)values + EntityBase_m_EntityCampType());
             auto minimapPos = WorldToMinimap(m_EntityCampType, _Position);
             DrawIconHero(ImVec2(minimapPos.x, minimapPos.y), m_ID, m_Hp, m_HpMax);
