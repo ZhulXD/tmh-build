@@ -1,0 +1,31 @@
+name: build-ndk-r17
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download and unpack NDK r17c
+        run: |
+          curl -sL -o ndk.zip https://dl.google.com/android/repository/android-ndk-r17c-linux-x86_64.zip
+          unzip -q ndk.zip -d "$HOME" && rm ndk.zip
+          echo "NDK=$HOME/android-ndk-r17c" >> "$GITHUB_ENV"
+          "$HOME/android-ndk-r17c/ndk-build" --version | head -n 2
+
+      - name: Clone original upstream themaphack
+        run: |
+          git clone --depth 1 https://github.com/anggorodhanumurti/themaphack.git tmh
+          cd tmh
+          git log -n 1 --oneline
+
+      - name: Build with NDK r17c (armeabi-v7a)
+        run: |
+          cd tmh
+          "$NDK/ndk-build" -j4 NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=./jni/Android.mk NDK_APPLICATION_MK=./jni/Application.mk APP_ABI=armeabi-v7a
+          ls -la libs/armeabi-v7a/
+          cp libs/armeabi-v7a/libAkSoundEngine2.so ../libAkSoundEngine.bytes
+          ls -la ../libAkSoundEngine.bytes
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libAkSoundEngine-bytes
+          path: libAkSoundEngine.bytes
