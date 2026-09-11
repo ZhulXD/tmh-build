@@ -324,8 +324,20 @@ uintptr_t BattleBridge_ShowHeadEquip(){
 	return (uintptr_t) Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "BattleBridge", "ShowHeadEquip", 3);
 }
 
+// 2.1.95: bStartBattle converted to Getter method get_bStartBattle()
+static inline bool BattleBridge_bStartBattle_Get(void *instance) {
+    if (!instance) return false;
+    static auto get_fn = (bool (*)(void *))(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "BattleBridge", "get_bStartBattle", 0));
+    if (!get_fn) {
+        get_fn = (bool (*)(void *))(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "BattleBridge", "Get_bStartBattle", 0));
+    }
+    if (get_fn) return get_fn(instance);
+    return true; // Fail-open fallback
+}
+
 uintptr_t BattleBridge_bStartBattle(){
-	return (uintptr_t) Il2CppGetFieldOffset("Assembly-CSharp.dll", "", "BattleBridge", "bStartBattle");
+    uintptr_t offset = (uintptr_t) Il2CppGetFieldOffset("Assembly-CSharp.dll", "", "BattleBridge", "bStartBattle");
+    return (offset != (uintptr_t)-1) ? offset : 0;
 }
 
 //--------------------------------> TEST NEW MAPHACK <--------------------------------
