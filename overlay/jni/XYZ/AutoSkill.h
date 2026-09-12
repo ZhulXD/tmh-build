@@ -95,6 +95,9 @@ inline void AutoRetributionUpdate(void *selfPlayer) {
     if (myHeroID == 71 && Config.Auto.Hero.KimmyDoubleDamage) {
         auto m_dicPlayerShow = *(Dictionary<int, uintptr_t> **) ((uintptr_t)BattleManager_Instance + BattleManager_m_dicPlayerShow());
         if (m_dicPlayerShow) {
+            uintptr_t offset_guid = EntityBase_m_uGuid();
+            if (offset_guid == 0 || offset_guid == (uintptr_t)-1) offset_guid = 0x190;
+
             for (int i = 0; i < m_dicPlayerShow->getNumKeys(); i++) {
                 auto values = m_dicPlayerShow->getValues()[i];
                 if (!values) continue;
@@ -105,28 +108,38 @@ inline void AutoRetributionUpdate(void *selfPlayer) {
 
                 auto targetPos = *(Vector3 *) ((uintptr_t)values + offset_pos);
                 float dist = Vector3::Distance(selfPos, targetPos);
-                if (dist <= 6.5f && targetPos != Vector3::zero()) {
+                if (dist <= 7.0f && targetPos != Vector3::zero()) {
+                    uint32_t targetGuid = *(uint32_t *) ((uintptr_t)values + offset_guid);
                     auto dir = Vector3::Normalized(targetPos - selfPos);
+
+                    // 1. Native TryCommonAtk(targetGuid) to spawn genuine basic attack projectiles
+                    typedef int (*t_TryCommonAtk)(void *Base, uint32_t targetId);
+                    static t_TryCommonAtk TryCommonAtk_fn = (t_TryCommonAtk)(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSelfPlayer", "TryCommonAtk", 1));
+                    if (TryCommonAtk_fn && targetGuid != 0) {
+                        TryCommonAtk_fn(selfPlayer, targetGuid);
+                        TryCommonAtk_fn(selfPlayer, targetGuid);
+                    }
+
+                    // 2. Direct TryUseSkill with basicAtkId, dirDefault=false, bCommonAttack=true, bIgnoreQueue=true
+                    static auto GetCommonAtkData_fn = (void *(*)(void *, bool))(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSelfPlayer", "GetCommonAtkData", 1));
+                    static auto get_SkillID_fn = (int (*)(void *))(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSkillData", "get_m_SkillID", 0));
+                    int basicAtkId = 7100;
+                    if (GetCommonAtkData_fn && get_SkillID_fn) {
+                        void *atkData = GetCommonAtkData_fn(selfPlayer, false);
+                        if (atkData) {
+                            int id = get_SkillID_fn(atkData);
+                            if (id > 0) basicAtkId = id;
+                        }
+                    }
+
                     typedef int (__fastcall * t_TryUseSkill)(void *Base, int skillId, Vector3 dir, bool dirDefault, Vector3 pos, bool bCommonAttack, bool bAlong, bool isInFirstDragRange, bool bIgnoreQueue, uint dragTime);
                     static t_TryUseSkill TryUseSkill_fn = (t_TryUseSkill)(ShowSelfPlayer_TryUseSkill2);
                     if (TryUseSkill_fn) {
-                        // Dynamically obtain Kimmy's true Basic Attack ID from engine
-                        static auto GetCommonAtkData_fn = (void *(*)(void *, bool))(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSelfPlayer", "GetCommonAtkData", 1));
-                        static auto get_SkillID_fn = (int (*)(void *))(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSkillData", "get_m_SkillID", 0));
-                        int basicAtkId = 7100;
-                        if (GetCommonAtkData_fn && get_SkillID_fn) {
-                            void *atkData = GetCommonAtkData_fn(selfPlayer, false);
-                            if (atkData) {
-                                int id = get_SkillID_fn(atkData);
-                                if (id > 0) basicAtkId = id;
-                            }
-                        }
-
-                        // Kimmy Double Basic Attack (Common Attack double-shot, bCommonAttack = true)
-                        TryUseSkill_fn(selfPlayer, basicAtkId, dir, true, targetPos, true, false, false, false, 0);
-                        TryUseSkill_fn(selfPlayer, basicAtkId, dir, true, targetPos, true, false, false, false, 0);
-                        break;
+                        // Double bullet fire with dirDefault=false and bIgnoreQueue=true
+                        TryUseSkill_fn(selfPlayer, basicAtkId, dir, false, targetPos, true, false, true, true, 100);
+                        TryUseSkill_fn(selfPlayer, basicAtkId, dir, false, targetPos, true, false, true, true, 100);
                     }
+                    break;
                 }
             }
         }
