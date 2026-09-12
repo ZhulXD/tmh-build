@@ -93,12 +93,12 @@ inline void AutoRetributionUpdate(void *selfPlayer) {
     int myHeroID = *(int *) (m_LocalPlayerShow + offset_id);
 
     if (myHeroID == 71 && Config.Auto.Hero.KimmyDoubleDamage) {
-        // Cooldown timer: prevents restarting attack animation every 16ms frame, allowing projectile to spawn
+        // Cooldown timer matched to Kimmy's true firing interval (~115ms)
         static auto lastKimmyAttack = std::chrono::steady_clock::now();
         auto nowTime = std::chrono::steady_clock::now();
         auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(nowTime - lastKimmyAttack).count();
 
-        if (elapsedMs >= 150) {
+        if (elapsedMs >= 115) {
             auto m_dicPlayerShow = *(Dictionary<int, uintptr_t> **) ((uintptr_t)BattleManager_Instance + BattleManager_m_dicPlayerShow());
             if (m_dicPlayerShow) {
                 uintptr_t offset_guid = EntityBase_m_uGuid();
@@ -114,11 +114,33 @@ inline void AutoRetributionUpdate(void *selfPlayer) {
 
                     auto targetPos = *(Vector3 *) ((uintptr_t)values + offset_pos);
                     float dist = Vector3::Distance(selfPos, targetPos);
-                    if (dist <= 7.5f && targetPos != Vector3::zero()) {
+                    // Strictly match Kimmy's true basic attack range (<= 5.8f)
+                    if (dist <= 5.8f && targetPos != Vector3::zero()) {
                         uint32_t targetGuid = *(uint32_t *) ((uintptr_t)values + offset_guid);
                         auto dir = Vector3::Normalized(targetPos - selfPos);
 
-                        // 1. ShowSelfPlayer.TryCommonAtk(targetGuid) - double projectile invocation
+                        // 1. Trigger AI Auto Common Attack on ShowUnitAIComp (0xbb0)
+                        uintptr_t offset_ai = 0xbb0; // f_ShowSelfPlayer_m_UnitAiComp
+                        void *aiComp = *(void **) ((uintptr_t)selfPlayer + offset_ai);
+                        if (aiComp) {
+                            typedef bool (*t_OnAutoCommonAtk)(void *ai);
+                            static t_OnAutoCommonAtk AutoAtk_fn = (t_OnAutoCommonAtk)(Il2CppGetMethodOffset("Assembly-CSharp.dll", "Battle", "ShowUnitAIComp", "OnAutoCommonAtk", 0));
+                            if (AutoAtk_fn) {
+                                AutoAtk_fn(aiComp);
+                                AutoAtk_fn(aiComp);
+                            }
+
+                            if (targetGuid != 0) {
+                                typedef void (*t_TryCommonAtkWithoutCheck)(void *ai, uint32_t id);
+                                static t_TryCommonAtkWithoutCheck TryAtkNoCheck = (t_TryCommonAtkWithoutCheck)(Il2CppGetMethodOffset("Assembly-CSharp.dll", "Battle", "ShowUnitAIComp", "TryCommonAtkWithoutCheck", 1));
+                                if (TryAtkNoCheck) {
+                                    TryAtkNoCheck(aiComp, targetGuid);
+                                    TryAtkNoCheck(aiComp, targetGuid);
+                                }
+                            }
+                        }
+
+                        // 2. Trigger ShowSelfPlayer.TryCommonAtk(targetGuid)
                         typedef int (*t_TryCommonAtk)(void *Base, uint32_t targetId);
                         static t_TryCommonAtk TryCommonAtk_fn = (t_TryCommonAtk)(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSelfPlayer", "TryCommonAtk", 1));
                         if (TryCommonAtk_fn && targetGuid != 0) {
@@ -126,35 +148,12 @@ inline void AutoRetributionUpdate(void *selfPlayer) {
                             TryCommonAtk_fn(selfPlayer, targetGuid);
                         }
 
-                        // 2. Direct ShowUnitAIComp.TryCommonAtkWithoutCheck(aiComp, targetGuid)
-                        uintptr_t offset_ai = 0xbb0; // f_ShowSelfPlayer_m_UnitAiComp
-                        void *aiComp = *(void **) ((uintptr_t)selfPlayer + offset_ai);
-                        if (aiComp && targetGuid != 0) {
-                            typedef void (*t_TryCommonAtkWithoutCheck)(void *ai, uint32_t id);
-                            static t_TryCommonAtkWithoutCheck TryAtkNoCheck = (t_TryCommonAtkWithoutCheck)(Il2CppGetMethodOffset("Assembly-CSharp.dll", "Battle", "ShowUnitAIComp", "TryCommonAtkWithoutCheck", 1));
-                            if (TryAtkNoCheck) {
-                                TryAtkNoCheck(aiComp, targetGuid);
-                                TryAtkNoCheck(aiComp, targetGuid);
-                            }
-                        }
-
-                        // 3. Directional TryUseSkill with basicAtkId
-                        static auto GetCommonAtkData_fn = (void *(*)(void *, bool))(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSelfPlayer", "GetCommonAtkData", 1));
-                        static auto get_SkillID_fn = (int (*)(void *))(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSkillData", "get_m_SkillID", 0));
-                        int basicAtkId = 7100;
-                        if (GetCommonAtkData_fn && get_SkillID_fn) {
-                            void *atkData = GetCommonAtkData_fn(selfPlayer, false);
-                            if (atkData) {
-                                int id = get_SkillID_fn(atkData);
-                                if (id > 0) basicAtkId = id;
-                            }
-                        }
-
-                        typedef int (__fastcall * t_TryUseSkill)(void *Base, int skillId, Vector3 dir, bool dirDefault, Vector3 pos, bool bCommonAttack, bool bAlong, bool isInFirstDragRange, bool bIgnoreQueue, uint dragTime);
-                        static t_TryUseSkill TryUseSkill_fn = (t_TryUseSkill)(ShowSelfPlayer_TryUseSkill2);
-                        if (TryUseSkill_fn) {
-                            TryUseSkill_fn(selfPlayer, basicAtkId, dir, false, targetPos, true, false, true, true, 100);
-                            TryUseSkill_fn(selfPlayer, basicAtkId, dir, false, targetPos, true, false, true, true, 100);
+                        // 3. Trigger TryUseSkillByLockUnit (lock-on projectile launcher, token 0x6004a94)
+                        typedef int (__fastcall * t_TryUseSkillByLockUnit)(void *Base, int skillId, Vector3 dir, Vector3 pos, bool bCommonAttack, uint32_t targetId, int location, bool bLockProtect, bool bIgnoreQueue, uint dragTime, bool isInFirstDragRange, int mustSendType);
+                        static t_TryUseSkillByLockUnit TryLockUnit_fn = (t_TryUseSkillByLockUnit)(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSelfPlayer", "TryUseSkillByLockUnit", 11));
+                        if (TryLockUnit_fn && targetGuid != 0) {
+                            TryLockUnit_fn(selfPlayer, 7100, dir, targetPos, true, targetGuid, 0, false, true, 100, false, 1);
+                            TryLockUnit_fn(selfPlayer, 7100, dir, targetPos, true, targetGuid, 0, false, true, 100, false, 1);
                         }
 
                         lastKimmyAttack = nowTime;
