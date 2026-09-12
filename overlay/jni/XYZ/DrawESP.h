@@ -597,6 +597,10 @@ void NewDrawESP(ImDrawList *draw, float screenWidth, float screenHeight) {
             auto minimapPos = WorldToMinimap(m_EntityCampType, _Position);
             DrawIconHero(ImVec2(minimapPos.x, minimapPos.y), m_ID, m_Hp, m_HpMax);
         }
+
+        if (Config.ESP.Player.HeroZ) {
+            DrawHero(rootPosVec2, m_ID, m_Hp, m_HpMax);
+        }
 		
 		if (Config.ESP.Player.Line) {
 			ImU32 col = IM_COL32((int)(lineColor.x * 255), (int)(lineColor.y * 255), (int)(lineColor.z * 255), (int)(lineColor.w * 255));
