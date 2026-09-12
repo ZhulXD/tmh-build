@@ -1,3 +1,4 @@
+#pragma once
 //method
 
 typedef unsigned long dword;
