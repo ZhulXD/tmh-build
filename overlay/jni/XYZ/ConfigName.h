@@ -423,6 +423,11 @@ struct sConfig {
             bool Crammer;
         };
         sRetribution Retribution{0};
+
+        struct sHero {
+            bool KimmyDoubleDamage;
+        };
+        sHero Hero{0};
     };
     sAuto Auto{0};
 
