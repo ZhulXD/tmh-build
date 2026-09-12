@@ -318,27 +318,15 @@ void DrawMenu() {
                 	if (ImGui::BeginTable("ESPPlayer", 3)) {
                     	ImGui::TableNextColumn();	ImGui::Checkbox(" Player Line", &Config.ESP.Player.Line);
                         ImGui::TableNextColumn();	ImGui::Checkbox(" Player Box", &Config.ESP.Player.Box);
-                        ImGui::TableNextColumn();	ImGui::Checkbox(" Player Name", &Config.ESP.Player.Name);
-                        ImGui::TableNextColumn();	ImGui::Checkbox(" Player Hero", &Config.ESP.Player.Hero);
                         ImGui::TableNextColumn();	ImGui::Checkbox(" Player Health", &Config.ESP.Player.Health);
-						ImGui::TableNextColumn();	ImGui::Checkbox(" Player Distance", &Config.ESP.Player.Distance);
-						ImGui::TableNextColumn();	ImGui::Checkbox(" Player Locator", &Config.ESP.Player.Locator2);
-                        ImGui::TableNextColumn();	ImGui::Checkbox(" Hero Alert", &Config.ESP.Player.Alert);
-                        ImGui::TableNextColumn();	ImGui::Checkbox(" Icon Hero", &Config.ESP.Player.HeroZ);
-                        ImGui::TableNextColumn();	ImGui::Checkbox(" Visible Check", &Config.ESP.Player.Visible);
-                        ImGui::TableNextColumn();	ImGui::Spacing();
                         ImGui::EndTable();
                     }
                 }
                 if (ImGui::CollapsingHeader("Monster")) {
                 	if (ImGui::BeginTable("Monster", 2)) {
-                    	ImGui::TableNextColumn();	ImGui::Checkbox(" Monster Round", &Config.ESP.Monster.Rounded);
                         ImGui::TableNextColumn();	ImGui::Checkbox(" Monster Health", &Config.ESP.Monster.Health);
-                        ImGui::TableNextColumn();	ImGui::Checkbox(" Monster Name", &Config.ESP.Monster.Name);
                         ImGui::TableNextColumn();	ImGui::Checkbox(" Monster Alert", &Config.ESP.Monster.Alert);
-						ImGui::TableNextColumn();	ImGui::Checkbox(" Monster Icon", &Config.ESP.Monster.Locator);
-						ImGui::TableNextColumn();	ImGui::Checkbox(" Monster Locator", &Config.ESP.Monster.Locator2);
-						ImGui::TableNextColumn();	ImGui::Checkbox(" Monster UID", &Config.m_IDConf);
+
                         ImGui::EndTable();
                     }
                 }
