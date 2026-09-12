@@ -478,27 +478,10 @@ void NewDrawESP(ImDrawList *draw, float screenWidth, float screenHeight) {
         auto bShowEntityLayer = *(bool *) ((uintptr_t)values + ShowEntity_bShowEntityLayer);
         auto m_Hp = *(int *) ((uintptr_t)values + EntityBase_m_Hp());
         auto m_HpMax = *(int *) ((uintptr_t)values + EntityBase_m_HpMax());
-        //if (bShowEntityLayer && m_Hp != m_HpMax) continue;
         auto _Position = *(Vector3 *) ((uintptr_t)values + ShowEntity__Position());
         auto rootPosVec2 = getPosVec2(_Position, screenWidth, screenHeight);
         float fDistance = Vector3::Distance(selfPos, _Position);
 		float PerHP = m_Hp * 100 / m_HpMax;
-		
-        if (!m_bDeath && Config.ESP.Monster.Rounded) {
-            draw->AddCircleFilled(rootPosVec2, 10, IM_COL32(255, 255, 255, 255));
-        }
-		/*
-		if (Config.m_IDConf) {
-            std::string mConfigi = to_string(new_mID);
-            auto textSize = ImGui::CalcTextSize(mConfigi.c_str(), 0, 20);
-            draw->AddText(NULL, 22, {rootPosVec2.x - (textSize.x / 2), rootPosVec2.y + 40}, IM_COL32(255, 255, 255, 255), mConfigi.c_str());
-        }
-        */
-        if (!m_bDeath && Config.ESP.Monster.Name) {
-            std::string strName = MonsterToString(m_ID);
-            auto textSize = ImGui::CalcTextSize(strName.c_str(), 0, ((float) screenHeight / 39.0f));
-            draw->AddText(NULL, ((float) screenHeight / 39.0f), {rootPosVec2.x - (textSize.x / 2), rootPosVec2.y + 25}, IM_COL32(255, 255, 255, 255), strName.c_str());
-        }
         
         if (Config.ESP.Monster.Health) {
             auto LineHealthStart = ImVec2(rootPosVec2.x + 40, rootPosVec2.y - 30);
@@ -517,9 +500,7 @@ void NewDrawESP(ImDrawList *draw, float screenWidth, float screenHeight) {
             draw->AddText(NULL, 20, {HealthEnd.x - (textSize.x / 2), HealthStart.y - 20}, IM_COL32(255, 255, 255, 255), strHealth.c_str());
         }
         
-		if (Config.ESP.Monster.Locator) {
-            DrawMonster2(rootPosVec2, m_ID, m_Hp, m_HpMax);
-        }
+
 		
 		if (Config.ESP.Monster.Alert) {
             if (m_ID == 2002 && m_Hp < m_HpMax) {
@@ -557,12 +538,7 @@ void NewDrawESP(ImDrawList *draw, float screenWidth, float screenHeight) {
     		}
         }
 		
-		if (Config.ESP.Monster.Locator2) {
-        	draw->AddText(NULL, ((float) screenHeight / 31.0f), {rootPosVec2.x, rootPosVec2.y - 115.0f}, IM_COL32(255, 255, 255, 255), ICON_FA_ARROW_DOWN);
-            if (PerHP < m_HpMax) {
-            	draw->AddText(NULL, ((float) screenHeight / 31.0f), {rootPosVec2.x, rootPosVec2.y - 115.0f}, IM_COL32(255, 3, 3, 255), ICON_FA_ARROW_DOWN);
-            }
-        }
+
 		
         if (Config.ESP.Monster.JungelAttack) {
             if (m_ID == 2004 && m_Hp < m_HpMax) {
@@ -614,32 +590,7 @@ void NewDrawESP(ImDrawList *draw, float screenWidth, float screenHeight) {
         auto HeadPosVec2 = Vector2(rootPosVec2.x, rootPosVec2.y - (screenHeight / 6.35));
 		//auto skillIdData = *(int *) ((uintptr_t)values + SkillComponent_m_iComAtkId);
 		
-        if (Config.ESP.Player.Alert && get_InTransformation((void *)values)) {
-            if (m_ID == 32 && m_ID == 69) {
-                draw->AddText(NULL, 30.0f, {screenWidth / 2.3f, screenHeight / 12.0f}, IM_COL32(255, 255, 0, 255), "Johnson and Hanzo Transformed!");
-            } else if (m_ID == 32) {
-                draw->AddText(NULL, 30.0f, {screenWidth / 2.3f, screenHeight / 12.0f}, IM_COL32(255, 255, 0, 255), "Johnson Becomes A Car!");
-            } else if (m_ID == 69) {
-                draw->AddText(NULL, 30.0f, {screenWidth / 2.3f, screenHeight / 12.0f}, IM_COL32(255, 255, 0, 255), "Hanzo Becomes A Kuyang!");
-            } else if (m_ID == 101) {
-                draw->AddText(NULL, 30.0f, {screenWidth / 2.3f, screenHeight / 12.0f}, IM_COL32(255, 255, 0, 255), "Yve in A Ultimate!");
-            }
-        }
-		
-		auto skillLearn = *(Dictionary<int, uintptr_t> **) ((uintptr_t)battleManager + SkillComponent_m_OwnSkillDic);
-	
         auto bShowEntityLayer = *(bool *) ((uintptr_t)values + ShowEntity_bShowEntityLayer);
-        
-        if (Config.ESP.Player.Visible) {
-            if (canSight && !isOutsideScreen(ImVec2(rootPosVec2.x, rootPosVec2.y), ImVec2(screenWidth, screenHeight)))
-                continue;
-        }
-        /*
-        //if (Config.m_IDConf) {
-            std::string mConfigi = to_string(iSkillLearn);
-            auto textSize = ImGui::CalcTextSize(mConfigi.c_str(), 0, 20);
-            draw->AddText(NULL, 22, {rootPosVec2.x - (textSize.x / 2), rootPosVec2.y + 40}, IM_COL32(255, 255, 255, 255), mConfigi.c_str());
-        */
         
         if (Config.MinimapIcon) {
             auto m_EntityCampType = *(int *) ((uintptr_t)values + EntityBase_m_EntityCampType());
@@ -647,14 +598,6 @@ void NewDrawESP(ImDrawList *draw, float screenWidth, float screenHeight) {
             DrawIconHero(ImVec2(minimapPos.x, minimapPos.y), m_ID, m_Hp, m_HpMax);
         }
 		
-		if (Config.ESP.Player.Locator2) {
-        	draw->AddText(NULL, ((float) screenHeight / 31.0f), {rootPosVec2.x, rootPosVec2.y - 115.0f}, IM_COL32(255, 255, 255, 255), ICON_FA_ARROW_DOWN);
-            if (PerHP < m_HpMax) {
-            	draw->AddText(NULL, ((float) screenHeight / 31.0f), {rootPosVec2.x, rootPosVec2.y - 115.0f}, IM_COL32(255, 3, 3, 255), ICON_FA_ARROW_DOWN);
-            }
-        }
-		
-        //if (!bShowEntityLayer) {
 		if (Config.ESP.Player.Line) {
 			ImU32 col = IM_COL32((int)(lineColor.x * 255), (int)(lineColor.y * 255), (int)(lineColor.z * 255), (int)(lineColor.w * 255));
 			draw->AddLine(selfPosVec2, ImVec2(rootPosVec2.x, rootPosVec2.y), col, 2.0f);
@@ -663,18 +606,9 @@ void NewDrawESP(ImDrawList *draw, float screenWidth, float screenHeight) {
             //draw->AddLine(selfPosVec2, rootPosVec2, IM_COL32(230, 230, 250, 255));
 		}
             
-        auto *m_RoleName = *(String **) ((uintptr_t)values + ShowEntity_m_RoleName);
-        if (Config.ESP.Player.Name && m_RoleName) {
-			ImU32 col = IM_COL32((int)(textColor.x * 255), (int)(textColor.y * 255), (int)(textColor.z * 255), (int)(textColor.w * 255));
-        	std::string strName = m_RoleName->toString();
-            auto textSize = ImGui::CalcTextSize(strName.c_str(), 0, 20);
-            draw->AddText(NULL, 22, {rootPosVec2.x - (textSize.x / 2), rootPosVec2.y + 40}, col, strName.c_str());
-		}
-			
 		if (Config.ESP.Player.Health) {
 			ImU32 healthCol = IM_COL32((int)(healthBarColor.x * 255), (int)(healthBarColor.y * 255), (int)(healthBarColor.z * 255), (int)(healthBarColor.w * 255));
             ImU32 borderCol = IM_COL32((int)(borderColor.x * 255), (int)(borderColor.y * 255), (int)(borderColor.z * 255), (int)(borderColor.w * 255));
-            ImU32 textCol = IM_COL32((int)(textColor.x * 255), (int)(textColor.y * 255), (int)(textColor.z * 255), (int)(textColor.w * 255));
 				
             auto LineHealthStart = ImVec2(rootPosVec2.x + 40, rootPosVec2.y - 30);
             auto LineHealthEnd = ImVec2(LineHealthStart.x + 160, LineHealthStart.y);
@@ -694,16 +628,6 @@ void NewDrawESP(ImDrawList *draw, float screenWidth, float screenHeight) {
             ImVec2 vStart = {HeadPosVec2.x - (boxWidth / 2), HeadPosVec2.y};
             ImVec2 vEnd = {vStart.x + boxWidth, vStart.y + boxHeight};
             draw->AddRect(vStart, vEnd, IM_COL32(255, 255, 255, 255), 0, 235, 1.0f);
-        }
-        
-        if (Config.ESP.Player.Round) {
-            draw->AddCircleFilled(rootPosVec2, 10, IM_COL32(255, 255, 255, 255));
-        }
-		// default: rootPosVec2.y + 5
-		if (Config.ESP.Player.Distance) {
-        	std::string strDistance = to_string(Distance) + " M";
-            auto textSize = ImGui::CalcTextSize(strDistance.c_str(), 0, ((float) screenHeight / 39.0f));
-            draw->AddText(NULL, ((float) screenHeight / 39.0f), {rootPosVec2.x - (textSize.x / 2), rootPosVec2.y + 15}, IM_COL32(10, 255, 202, 255), strDistance.c_str());
         }
 
         if (Config.ESP.Player.CoolDown || Config.ESP.Player.CoolDown2) {
@@ -799,29 +723,7 @@ void NewDrawESP(ImDrawList *draw, float screenWidth, float screenHeight) {
             }
         }
         
-        if (Config.ESP.Player.Alert && isOutsideScreen(ImVec2(rootPosVec2.x, rootPosVec2.y), ImVec2(screenWidth, screenHeight))) {
-            ImVec2 hintDotRenderPos = pushToScreenBorder(ImVec2(rootPosVec2.x, rootPosVec2.y), ImVec2(screenWidth, screenHeight), - 50);
-            ImVec2 hintTextRenderPos = pushToScreenBorder(ImVec2(rootPosVec2.x, rootPosVec2.y), ImVec2(screenWidth, screenHeight), - 50);
-            //DrawCircleHealth(hintDotRenderPos, CurHP, MaxHP, 25);
-            DrawLogo(ImGui::GetForegroundDrawList(), hintDotRenderPos, m_ID, m_Hp, m_HpMax);
-            if(Config.ESP.Player.Distance){
-                std::string strDistance = to_string(Distance) + " M";
-                auto textSize = ImGui::CalcTextSize(strDistance.c_str(), 0, ((float) screenHeight / 45.0f));
-                draw->AddText(NULL, ((float) screenHeight / 45.0f), {hintTextRenderPos.x - (textSize.x / 2), hintTextRenderPos.y + 7}, IM_COL32(255, 255, 255, 255), strDistance.c_str());
-            }
-            if (m_HeroName) {
-                std::string strName = m_HeroName->toString();
-                if(Config.ESP.Player.Status) {
-                    strName += strName + "[" + CekBattle(inBattle).c_str() + "]";
-                }
-                auto textSize = ImGui::CalcTextSize(strName.c_str(), 0, ((float) screenHeight / 39.0f));
-                draw->AddText(NULL, ((float) screenHeight / 39.0f), {hintTextRenderPos.x - (textSize.x / 2), hintTextRenderPos.y + 30}, IM_COL32(255, 255, 255, 255), strName.c_str());
-            }
-        }
-        
-        if (Config.ESP.Player.HeroZ) {
-            DrawHero(rootPosVec2, m_ID, m_Hp, m_HpMax);
-        }
+
         
 
     }
