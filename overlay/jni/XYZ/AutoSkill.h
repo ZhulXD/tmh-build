@@ -2,6 +2,11 @@
 #include <string>
 #include <vector>
 #include <cmath>
+#include "Tools/Dobby/Dobby.hpp"
+
+// Forward declarations
+inline int GetLocalPlayerSpell();
+inline bool IsPlayerInBattle();
 
 inline std::string GetSpellName(int spellId) {
     if (spellId == 20020 || spellId / 10 == 2002) return "Retribution";
@@ -19,13 +24,25 @@ inline std::string GetSpellName(int spellId) {
     return "Spell (" + std::to_string(spellId) + ")";
 }
 
+inline bool IsPlayerInBattle() {
+    void *BattleManager_Instance = nullptr;
+    Il2CppGetStaticFieldValue("Assembly-CSharp.dll", "", "BattleManager", "Instance", &BattleManager_Instance);
+    if (!BattleManager_Instance) return false;
+    auto m_LocalPlayerShow = *(uintptr_t *) ((uintptr_t)BattleManager_Instance + BattleManager_m_LocalPlayerShow());
+    if (!m_LocalPlayerShow) return false;
+    return true;
+}
+
 inline int GetLocalPlayerSpell() {
     void *BattleManager_Instance = nullptr;
     Il2CppGetStaticFieldValue("Assembly-CSharp.dll", "", "BattleManager", "Instance", &BattleManager_Instance);
     if (!BattleManager_Instance) return 0;
     auto m_LocalPlayerShow = *(uintptr_t *) ((uintptr_t)BattleManager_Instance + BattleManager_m_LocalPlayerShow());
     if (!m_LocalPlayerShow) return 0;
-    return *(int *) (m_LocalPlayerShow + ShowPlayer_m_iSummonSkillId());
+    
+    uintptr_t offset_spell = ShowPlayer_m_iSummonSkillId();
+    if (offset_spell == 0 || offset_spell == (uintptr_t)-1) offset_spell = 0x964;
+    return *(int *) (m_LocalPlayerShow + offset_spell);
 }
 
 inline int CalculateRetriDamage(int m_Level, int _KillWildTimes = 5, int _killNum = 0, int _assistNum = 0) {
@@ -35,9 +52,6 @@ inline int CalculateRetriDamage(int m_Level, int _KillWildTimes = 5, int _killNu
         return (int)(1.521f * (float)(520 + (80 * m_Level)));
     }
 }
-
-// Global hook pointer
-extern void (*oShowSelfPlayer_OnUpdate)(void *);
 
 inline void AutoRetributionUpdate(void *selfPlayer) {
     if (!selfPlayer || !Config.Auto.Retribution.Enable) return;
@@ -49,33 +63,51 @@ inline void AutoRetributionUpdate(void *selfPlayer) {
     auto m_LocalPlayerShow = *(uintptr_t *) ((uintptr_t)BattleManager_Instance + BattleManager_m_LocalPlayerShow());
     if (!m_LocalPlayerShow) return;
 
-    int mySpell = *(int *) (m_LocalPlayerShow + ShowPlayer_m_iSummonSkillId());
+    uintptr_t offset_spell = ShowPlayer_m_iSummonSkillId();
+    if (offset_spell == 0 || offset_spell == (uintptr_t)-1) offset_spell = 0x964;
+    int mySpell = *(int *) (m_LocalPlayerShow + offset_spell);
+    
     // Only execute if local player has Retribution equipped (20020 or 2002x)
     if (mySpell != 20020 && (mySpell / 10 != 2002)) return;
 
-    int m_Level = *(int *) (m_LocalPlayerShow + EntityBase_m_Level());
+    uintptr_t offset_lvl = EntityBase_m_Level();
+    if (offset_lvl == 0 || offset_lvl == (uintptr_t)-1) offset_lvl = 0x198;
+    int m_Level = *(int *) (m_LocalPlayerShow + offset_lvl);
     if (m_Level <= 0) m_Level = 1;
 
-    int killWild = 5;
-    int maxRetriDamage = CalculateRetriDamage(m_Level, killWild, 0, 0);
+    int maxRetriDamage = CalculateRetriDamage(m_Level, 5, 0, 0);
 
-    auto selfPos = *(Vector3 *) (m_LocalPlayerShow + ShowEntity__Position());
+    uintptr_t offset_pos = ShowEntity__Position();
+    if (offset_pos == 0 || offset_pos == (uintptr_t)-1) offset_pos = 0x294;
+    auto selfPos = *(Vector3 *) (m_LocalPlayerShow + offset_pos);
 
     // Iterate monsters from dictionary
     auto m_dicMonsterShow = *(Dictionary<int, uintptr_t> **) ((uintptr_t)BattleManager_Instance + BattleManager_m_dicMonsterShow());
     if (!m_dicMonsterShow) return;
 
+    uintptr_t offset_death = EntityBase_m_bDeath();
+    if (offset_death == 0 || offset_death == (uintptr_t)-1) offset_death = 0xcd;
+
+    uintptr_t offset_camp = EntityBase_m_bSameCampType();
+    if (offset_camp == 0 || offset_camp == (uintptr_t)-1) offset_camp = 0x2b1;
+
+    uintptr_t offset_id = EntityBase_m_ID();
+    if (offset_id == 0 || offset_id == (uintptr_t)-1) offset_id = 0x194;
+
+    uintptr_t offset_hp = EntityBase_m_Hp();
+    if (offset_hp == 0 || offset_hp == (uintptr_t)-1) offset_hp = 0x1ac;
+
     for (int i = 0; i < m_dicMonsterShow->getNumKeys(); i++) {
         auto values = m_dicMonsterShow->getValues()[i];
         if (!values) continue;
 
-        auto m_bDeath = *(bool *) ((uintptr_t)values + EntityBase_m_bDeath());
+        auto m_bDeath = *(bool *) ((uintptr_t)values + offset_death);
         if (m_bDeath) continue;
 
-        auto m_bSameCampType = *(bool *) ((uintptr_t)values + EntityBase_m_bSameCampType());
+        auto m_bSameCampType = *(bool *) ((uintptr_t)values + offset_camp);
         if (m_bSameCampType) continue;
 
-        auto m_ID = *(int *) ((uintptr_t)values + EntityBase_m_ID());
+        auto m_ID = *(int *) ((uintptr_t)values + offset_id);
 
         bool isTarget = false;
         if (Config.Auto.Retribution.Lord && (m_ID == 2002)) isTarget = true;
@@ -87,12 +119,12 @@ inline void AutoRetributionUpdate(void *selfPlayer) {
 
         if (!isTarget) continue;
 
-        auto _Position = *(Vector3 *) ((uintptr_t)values + ShowEntity__Position());
+        auto _Position = *(Vector3 *) ((uintptr_t)values + offset_pos);
         float dist = Vector3::Distance(selfPos, _Position);
 
         // Retribution cast distance range is ~7.5f units
         if (dist <= 7.5f) {
-            auto m_Hp = *(int *) ((uintptr_t)values + EntityBase_m_Hp());
+            auto m_Hp = *(int *) ((uintptr_t)values + offset_hp);
             if (m_Hp > 0 && m_Hp <= maxRetriDamage) {
                 // Instantly cast retribution towards monster!
                 auto dir = Vector3::Normalized(_Position - selfPos);
@@ -107,11 +139,13 @@ inline void AutoRetributionUpdate(void *selfPlayer) {
     }
 }
 
-inline void iShowSelfPlayer_OnUpdate(void *self) {
-    if (self != nullptr) {
-        AutoRetributionUpdate(self);
-    }
-    if (oShowSelfPlayer_OnUpdate) {
-        oShowSelfPlayer_OnUpdate(self);
+inline void ShowSelfPlayer_OnUpdate_Handler(RegisterContext *ctx, const HookEntryInfo *info) {
+#if defined(__arm__)
+    void *SelfPlayer = (void *)(ctx->general.r[0]);
+#elif defined(__arm64__) || defined(__aarch64__)
+    void *SelfPlayer = (void *)(ctx->general.x[0]);
+#endif
+    if (SelfPlayer != nullptr) {
+        AutoRetributionUpdate(SelfPlayer);
     }
 }
