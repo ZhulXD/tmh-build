@@ -2,8 +2,6 @@
 #include <string>
 #include <vector>
 #include <cmath>
-#include "GameClass.h"
-#include "ConfigName.h"
 
 inline std::string GetSpellName(int spellId) {
     if (spellId == 20020 || spellId / 10 == 2002) return "Retribution";
@@ -58,7 +56,7 @@ inline void AutoRetributionUpdate(void *selfPlayer) {
     int m_Level = *(int *) (m_LocalPlayerShow + EntityBase_m_Level());
     if (m_Level <= 0) m_Level = 1;
 
-    int killWild = 5; // Default to full upgrade if not directly read
+    int killWild = 5;
     int maxRetriDamage = CalculateRetriDamage(m_Level, killWild, 0, 0);
 
     auto selfPos = *(Vector3 *) (m_LocalPlayerShow + ShowEntity__Position());
@@ -102,7 +100,7 @@ inline void AutoRetributionUpdate(void *selfPlayer) {
                 static t_TryUseSkill TryUseSkill_fn = (t_TryUseSkill)(ShowSelfPlayer_TryUseSkill2);
                 if (TryUseSkill_fn) {
                     TryUseSkill_fn(selfPlayer, mySpell, dir, false, Vector3::zero(), true, false, false, false, 0);
-                    break; // Cast once per tick
+                    break;
                 }
             }
         }
