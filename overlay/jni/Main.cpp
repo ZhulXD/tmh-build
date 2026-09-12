@@ -276,7 +276,12 @@ void *main_thread(void *) {
     Tools::Hook((void *) AntiCheatReporter_OnRequestSkillMsg, (void *) iAntiCheatReporter_OnRequestSkillMsg, (void **) &oAntiCheatReporter_OnRequestSkillMsg);
     Tools::Hook((void *) AntiCheatReporter_HasSkillInfo, (void *) iAntiCheatReporter_HasSkillInfo, (void **) &oAntiCheatReporter_HasSkillInfo);
     
-	Tools::Hook((void *) ShowBattleControl_SetAntiCheatReport, (void *) iSetAntiCheatReport, (void **) &oSetAntiCheatReport);
+		Tools::Hook((void *) ShowBattleControl_SetAntiCheatReport, (void *) iSetAntiCheatReport, (void **) &oSetAntiCheatReport);
+
+    void *onUpdateAddr = (void *) ShowSelfPlayer_OnUpdate;
+    if (onUpdateAddr) {
+        DobbyInstrument(onUpdateAddr, ShowSelfPlayer_OnUpdate_Handler);
+    }
 	
     pthread_t t;
     return 0;
