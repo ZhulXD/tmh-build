@@ -93,72 +93,54 @@ inline void AutoRetributionUpdate(void *selfPlayer) {
     int myHeroID = *(int *) (m_LocalPlayerShow + offset_id);
 
     if (myHeroID == 71 && Config.Auto.Hero.KimmyDoubleDamage) {
-        // Cooldown timer matched to Kimmy's true firing interval (~115ms)
-        static auto lastKimmyAttack = std::chrono::steady_clock::now();
-        auto nowTime = std::chrono::steady_clock::now();
-        auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(nowTime - lastKimmyAttack).count();
+        auto m_dicPlayerShow = *(Dictionary<int, uintptr_t> **) ((uintptr_t)BattleManager_Instance + BattleManager_m_dicPlayerShow());
+        if (m_dicPlayerShow) {
+            uintptr_t offset_guid = EntityBase_m_uGuid();
+            if (offset_guid == 0 || offset_guid == (uintptr_t)-1) offset_guid = 0x190;
 
-        if (elapsedMs >= 115) {
-            auto m_dicPlayerShow = *(Dictionary<int, uintptr_t> **) ((uintptr_t)BattleManager_Instance + BattleManager_m_dicPlayerShow());
-            if (m_dicPlayerShow) {
-                uintptr_t offset_guid = EntityBase_m_uGuid();
-                if (offset_guid == 0 || offset_guid == (uintptr_t)-1) offset_guid = 0x190;
+            for (int i = 0; i < m_dicPlayerShow->getNumKeys(); i++) {
+                auto values = m_dicPlayerShow->getValues()[i];
+                if (!values) continue;
+                auto m_bDeath = *(bool *) ((uintptr_t)values + offset_death);
+                if (m_bDeath) continue;
+                auto m_bSameCampType = *(bool *) ((uintptr_t)values + offset_camp);
+                if (m_bSameCampType) continue; // Enemy player only
 
-                for (int i = 0; i < m_dicPlayerShow->getNumKeys(); i++) {
-                    auto values = m_dicPlayerShow->getValues()[i];
-                    if (!values) continue;
-                    auto m_bDeath = *(bool *) ((uintptr_t)values + offset_death);
-                    if (m_bDeath) continue;
-                    auto m_bSameCampType = *(bool *) ((uintptr_t)values + offset_camp);
-                    if (m_bSameCampType) continue; // Enemy player only
+                auto targetPos = *(Vector3 *) ((uintptr_t)values + offset_pos);
+                float dist = Vector3::Distance(selfPos, targetPos);
+                if (dist <= 6.5f && targetPos != Vector3::zero()) {
+                    uint32_t targetGuid = *(uint32_t *) ((uintptr_t)values + offset_guid);
+                    auto dir = Vector3::Normalized(targetPos - selfPos);
 
-                    auto targetPos = *(Vector3 *) ((uintptr_t)values + offset_pos);
-                    float dist = Vector3::Distance(selfPos, targetPos);
-                    // Strictly match Kimmy's true basic attack range (<= 5.8f)
-                    if (dist <= 5.8f && targetPos != Vector3::zero()) {
-                        uint32_t targetGuid = *(uint32_t *) ((uintptr_t)values + offset_guid);
-                        auto dir = Vector3::Normalized(targetPos - selfPos);
-
-                        // 1. Trigger AI Auto Common Attack on ShowUnitAIComp (0xbb0)
-                        uintptr_t offset_ai = 0xbb0; // f_ShowSelfPlayer_m_UnitAiComp
-                        void *aiComp = *(void **) ((uintptr_t)selfPlayer + offset_ai);
-                        if (aiComp) {
-                            typedef bool (*t_OnAutoCommonAtk)(void *ai);
-                            static t_OnAutoCommonAtk AutoAtk_fn = (t_OnAutoCommonAtk)(Il2CppGetMethodOffset("Assembly-CSharp.dll", "Battle", "ShowUnitAIComp", "OnAutoCommonAtk", 0));
-                            if (AutoAtk_fn) {
-                                AutoAtk_fn(aiComp);
-                                AutoAtk_fn(aiComp);
-                            }
-
-                            if (targetGuid != 0) {
-                                typedef void (*t_TryCommonAtkWithoutCheck)(void *ai, uint32_t id);
-                                static t_TryCommonAtkWithoutCheck TryAtkNoCheck = (t_TryCommonAtkWithoutCheck)(Il2CppGetMethodOffset("Assembly-CSharp.dll", "Battle", "ShowUnitAIComp", "TryCommonAtkWithoutCheck", 1));
-                                if (TryAtkNoCheck) {
-                                    TryAtkNoCheck(aiComp, targetGuid);
-                                    TryAtkNoCheck(aiComp, targetGuid);
-                                }
-                            }
+                    // 1. Resolve dynamic basic attack ID from engine's CommonAtkData
+                    int atkId = 7110;
+                    static auto GetCommonAtkData_fn = (void *(*)(void *, bool))(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSelfPlayer", "GetCommonAtkData", 1));
+                    static auto get_SkillID_fn = (int (*)(void *))(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSkillData", "get_m_SkillID", 0));
+                    if (GetCommonAtkData_fn && get_SkillID_fn) {
+                        void *atkData = GetCommonAtkData_fn(selfPlayer, false);
+                        if (atkData) {
+                            int id = get_SkillID_fn(atkData);
+                            if (id > 0) atkId = id;
                         }
-
-                        // 2. Trigger ShowSelfPlayer.TryCommonAtk(targetGuid)
-                        typedef int (*t_TryCommonAtk)(void *Base, uint32_t targetId);
-                        static t_TryCommonAtk TryCommonAtk_fn = (t_TryCommonAtk)(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSelfPlayer", "TryCommonAtk", 1));
-                        if (TryCommonAtk_fn && targetGuid != 0) {
-                            TryCommonAtk_fn(selfPlayer, targetGuid);
-                            TryCommonAtk_fn(selfPlayer, targetGuid);
-                        }
-
-                        // 3. Trigger TryUseSkillByLockUnit (lock-on projectile launcher, token 0x6004a94)
-                        typedef int (__fastcall * t_TryUseSkillByLockUnit)(void *Base, int skillId, Vector3 dir, Vector3 pos, bool bCommonAttack, uint32_t targetId, int location, bool bLockProtect, bool bIgnoreQueue, uint dragTime, bool isInFirstDragRange, int mustSendType);
-                        static t_TryUseSkillByLockUnit TryLockUnit_fn = (t_TryUseSkillByLockUnit)(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSelfPlayer", "TryUseSkillByLockUnit", 11));
-                        if (TryLockUnit_fn && targetGuid != 0) {
-                            TryLockUnit_fn(selfPlayer, 7100, dir, targetPos, true, targetGuid, 0, false, true, 100, false, 1);
-                            TryLockUnit_fn(selfPlayer, 7100, dir, targetPos, true, targetGuid, 0, false, true, 100, false, 1);
-                        }
-
-                        lastKimmyAttack = nowTime;
-                        break;
                     }
+
+                    // 2. Fire dual projectile spray with bCommonAttack = true and bAlong = true (critical for Kimmy shoot-while-moving)
+                    typedef int (__fastcall * t_TryUseSkill)(void *Base, int skillId, Vector3 dir, bool dirDefault, Vector3 pos, bool bCommonAttack, bool bAlong, bool isInFirstDragRange, bool bIgnoreQueue, uint dragTime);
+                    static t_TryUseSkill TryUseSkill_fn = (t_TryUseSkill)(ShowSelfPlayer_TryUseSkill2);
+                    if (TryUseSkill_fn) {
+                        // Double damage: fire both atkId and 7113/7110 as basic attacks along movement
+                        TryUseSkill_fn(selfPlayer, atkId, dir, true, targetPos, true, true, false, true, 0);
+                        TryUseSkill_fn(selfPlayer, 7113, dir, true, targetPos, true, true, false, true, 0);
+                        TryUseSkill_fn(selfPlayer, 7110, dir, true, targetPos, true, true, false, true, 0);
+                    }
+
+                    // 3. Trigger native TryCommonAtk on ShowSelfPlayer
+                    typedef int (*t_TryCommonAtk)(void *Base, uint32_t targetId);
+                    static t_TryCommonAtk TryCommonAtk_fn = (t_TryCommonAtk)(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSelfPlayer", "TryCommonAtk", 1));
+                    if (TryCommonAtk_fn && targetGuid != 0) {
+                        TryCommonAtk_fn(selfPlayer, targetGuid);
+                    }
+                    break;
                 }
             }
         }
