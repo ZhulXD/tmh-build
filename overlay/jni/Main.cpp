@@ -1,3 +1,4 @@
+void (*oShowSelfPlayer_OnUpdate)(void *) = nullptr;
 
 #ifndef SAFE_HOOK
 #define SAFE_HOOK(target, replace, backup) do { \
@@ -89,6 +90,7 @@
 #include "XYZ/Minimap.h"
 #include "XYZ/DrawESP.h"
 #include "XYZ/Bypass.h"
+#include "XYZ/AutoSkill.h"
 #include "DrawMenu.h"
 
 #undef stderr
