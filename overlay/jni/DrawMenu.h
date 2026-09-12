@@ -404,51 +404,55 @@ void DrawMenu() {
 				if (ImGui::BeginTabItem("Auto")) {
                     float availW = ImGui::GetContentRegionAvail().x;
                     float colW = (availW - 12.0f) * 0.5f;
+                    float childH = 260.0f; // Fixed height prevents infinite downward auto-resize stretch
+                    bool inBattle = IsPlayerInBattle();
 
                     // --- Left Column: Hero Function ---
-                    ImGui::BeginChild("AutoHeroPage", ImVec2(colW, 0.0f), true);
+                    ImGui::BeginChild("AutoHeroPage", ImVec2(colW, childH), true);
                     {
-                        ImGui::TextColored(ImVec4(0.3f, 0.85f, 1.0f, 1.0f), "HERO FUNCTION");
+                        ImGui::Text("HERO FUNCTION");
                         ImGui::Separator();
                         ImGui::Spacing();
-                        ImGui::TextDisabled("Hero automation features will be");
-                        ImGui::TextDisabled("configured here.");
-                        ImGui::Spacing();
-                        ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 0.5f), "[Slot ready for hero scripts]");
+                        // Transparent white text for hero placeholder
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 0.45f), "Features will appear in the game");
                     }
                     ImGui::EndChild();
 
                     ImGui::SameLine();
 
                     // --- Right Sidebar: Spell Function ---
-                    ImGui::BeginChild("AutoSpellPage", ImVec2(0.0f, 0.0f), true);
+                    ImGui::BeginChild("AutoSpellPage", ImVec2(0.0f, childH), true);
                     {
-                        ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "SPELL FUNCTION");
+                        ImGui::Text("SPELL FUNCTION");
                         ImGui::Separator();
                         ImGui::Spacing();
 
-                        int activeSpell = GetLocalPlayerSpell();
-                        bool isRetri = (activeSpell == 0 || activeSpell == 20020 || activeSpell / 10 == 2002);
-
-                        if (isRetri) {
-                            ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.4f, 1.0f), "Battle Spell: Retribution");
-                            ImGui::Spacing();
-                            ImGui::Checkbox("Auto Retribution", &Config.Auto.Retribution.Enable);
-                            if (Config.Auto.Retribution.Enable) {
-                                ImGui::Indent(10.0f);
-                                ImGui::Checkbox("Lord (2002)", &Config.Auto.Retribution.Lord);
-                                ImGui::Checkbox("Turtle (2003)", &Config.Auto.Retribution.Turtle);
-                                ImGui::Checkbox("Buff (Red/Blue)", &Config.Auto.Retribution.Buff);
-                                ImGui::Checkbox("Crab (2011/2013)", &Config.Auto.Retribution.Crab);
-                                ImGui::Checkbox("Litho (2056/2072)", &Config.Auto.Retribution.Litho);
-                                ImGui::Checkbox("Crammer (2008)", &Config.Auto.Retribution.Crammer);
-                                ImGui::Unindent(10.0f);
-                            }
+                        if (!inBattle) {
+                            // Do not show any checkboxes outside battle as requested
+                            ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 0.45f), "Features will appear in the game");
                         } else {
-                            ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.2f, 1.0f), "Active Spell: %s", GetSpellName(activeSpell).c_str());
-                            ImGui::Spacing();
-                            ImGui::TextDisabled("Auto Retribution is active only");
-                            ImGui::TextDisabled("when Retribution is equipped.");
+                            int activeSpell = GetLocalPlayerSpell();
+                            bool isRetri = (activeSpell == 20020 || activeSpell / 10 == 2002);
+
+                            if (isRetri) {
+                                ImGui::Text("Spell: Retribution");
+                                ImGui::Spacing();
+                                ImGui::Checkbox("Auto Retribution", &Config.Auto.Retribution.Enable);
+                                if (Config.Auto.Retribution.Enable) {
+                                    ImGui::Indent(10.0f);
+                                    ImGui::Checkbox("Lord (2002)", &Config.Auto.Retribution.Lord);
+                                    ImGui::Checkbox("Turtle (2003)", &Config.Auto.Retribution.Turtle);
+                                    ImGui::Checkbox("Buff (Red/Blue)", &Config.Auto.Retribution.Buff);
+                                    ImGui::Checkbox("Crab (2011/2013)", &Config.Auto.Retribution.Crab);
+                                    ImGui::Checkbox("Litho (2056/2072)", &Config.Auto.Retribution.Litho);
+                                    ImGui::Checkbox("Crammer (2008)", &Config.Auto.Retribution.Crammer);
+                                    ImGui::Unindent(10.0f);
+                                }
+                            } else {
+                                ImGui::Text("Active Spell: %s", GetSpellName(activeSpell).c_str());
+                                ImGui::Spacing();
+                                ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 0.45f), "Retribution not equipped.");
+                            }
                         }
                     }
                     ImGui::EndChild();
