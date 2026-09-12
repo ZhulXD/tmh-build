@@ -6,6 +6,7 @@
 
 // Forward declarations
 inline int GetLocalPlayerSpell();
+inline int GetLocalPlayerHeroID();
 inline bool IsPlayerInBattle();
 
 inline std::string GetSpellName(int spellId) {
@@ -45,16 +46,29 @@ inline int GetLocalPlayerSpell() {
     return *(int *) (m_LocalPlayerShow + offset_spell);
 }
 
-inline int CalculateRetriDamage(int m_Level, int _KillWildTimes = 5, int _killNum = 0, int _assistNum = 0) {
-    if ((_KillWildTimes + _killNum + _assistNum) < 5) {
-        return 520 + (80 * m_Level);
-    } else {
-        return (int)(1.521f * (float)(520 + (80 * m_Level)));
-    }
+inline int GetLocalPlayerHeroID() {
+    void *BattleManager_Instance = nullptr;
+    Il2CppGetStaticFieldValue("Assembly-CSharp.dll", "", "BattleManager", "Instance", &BattleManager_Instance);
+    if (!BattleManager_Instance) return 0;
+    auto m_LocalPlayerShow = *(uintptr_t *) ((uintptr_t)BattleManager_Instance + BattleManager_m_LocalPlayerShow());
+    if (!m_LocalPlayerShow) return 0;
+    
+    uintptr_t offset_id = EntityBase_m_ID();
+    if (offset_id == 0 || offset_id == (uintptr_t)-1) offset_id = 0x194;
+    return *(int *) (m_LocalPlayerShow + offset_id);
+}
+
+// Updated New Patch Retribution damage formula: 750 + (150 * Hero Level)
+// Level 1: 900 True Damage
+// Level 15: 3,000 True Damage
+inline int CalculateRetriDamage(int m_Level) {
+    if (m_Level < 1) m_Level = 1;
+    if (m_Level > 15) m_Level = 15;
+    return 750 + (150 * m_Level);
 }
 
 inline void AutoRetributionUpdate(void *selfPlayer) {
-    if (!selfPlayer || !Config.Auto.Retribution.Enable) return;
+    if (!selfPlayer) return;
 
     void *BattleManager_Instance = nullptr;
     Il2CppGetStaticFieldValue("Assembly-CSharp.dll", "", "BattleManager", "Instance", &BattleManager_Instance);
@@ -63,27 +77,9 @@ inline void AutoRetributionUpdate(void *selfPlayer) {
     auto m_LocalPlayerShow = *(uintptr_t *) ((uintptr_t)BattleManager_Instance + BattleManager_m_LocalPlayerShow());
     if (!m_LocalPlayerShow) return;
 
-    uintptr_t offset_spell = ShowPlayer_m_iSummonSkillId();
-    if (offset_spell == 0 || offset_spell == (uintptr_t)-1) offset_spell = 0x964;
-    int mySpell = *(int *) (m_LocalPlayerShow + offset_spell);
-    
-    // Only execute if local player has Retribution equipped (20020 or 2002x)
-    if (mySpell != 20020 && (mySpell / 10 != 2002)) return;
-
-    uintptr_t offset_lvl = EntityBase_m_Level();
-    if (offset_lvl == 0 || offset_lvl == (uintptr_t)-1) offset_lvl = 0x198;
-    int m_Level = *(int *) (m_LocalPlayerShow + offset_lvl);
-    if (m_Level <= 0) m_Level = 1;
-
-    int maxRetriDamage = CalculateRetriDamage(m_Level, 5, 0, 0);
-
     uintptr_t offset_pos = ShowEntity__Position();
     if (offset_pos == 0 || offset_pos == (uintptr_t)-1) offset_pos = 0x294;
     auto selfPos = *(Vector3 *) (m_LocalPlayerShow + offset_pos);
-
-    // Iterate monsters from dictionary
-    auto m_dicMonsterShow = *(Dictionary<int, uintptr_t> **) ((uintptr_t)BattleManager_Instance + BattleManager_m_dicMonsterShow());
-    if (!m_dicMonsterShow) return;
 
     uintptr_t offset_death = EntityBase_m_bDeath();
     if (offset_death == 0 || offset_death == (uintptr_t)-1) offset_death = 0xcd;
@@ -91,48 +87,95 @@ inline void AutoRetributionUpdate(void *selfPlayer) {
     uintptr_t offset_camp = EntityBase_m_bSameCampType();
     if (offset_camp == 0 || offset_camp == (uintptr_t)-1) offset_camp = 0x2b1;
 
+    // --- 1. KIMMY DOUBLE DAMAGE AUTOMATION ---
     uintptr_t offset_id = EntityBase_m_ID();
     if (offset_id == 0 || offset_id == (uintptr_t)-1) offset_id = 0x194;
+    int myHeroID = *(int *) (m_LocalPlayerShow + offset_id);
 
-    uintptr_t offset_hp = EntityBase_m_Hp();
-    if (offset_hp == 0 || offset_hp == (uintptr_t)-1) offset_hp = 0x1ac;
+    if (myHeroID == 71 && Config.Auto.Hero.KimmyDoubleDamage) {
+        auto m_dicPlayerShow = *(Dictionary<int, uintptr_t> **) ((uintptr_t)BattleManager_Instance + BattleManager_m_dicPlayerShow());
+        if (m_dicPlayerShow) {
+            for (int i = 0; i < m_dicPlayerShow->getNumKeys(); i++) {
+                auto values = m_dicPlayerShow->getValues()[i];
+                if (!values) continue;
+                auto m_bDeath = *(bool *) ((uintptr_t)values + offset_death);
+                if (m_bDeath) continue;
+                auto m_bSameCampType = *(bool *) ((uintptr_t)values + offset_camp);
+                if (m_bSameCampType) continue; // Enemy player only
 
-    for (int i = 0; i < m_dicMonsterShow->getNumKeys(); i++) {
-        auto values = m_dicMonsterShow->getValues()[i];
-        if (!values) continue;
+                auto targetPos = *(Vector3 *) ((uintptr_t)values + offset_pos);
+                float dist = Vector3::Distance(selfPos, targetPos);
+                if (dist <= 6.5f && targetPos != Vector3::zero()) {
+                    auto dir = Vector3::Normalized(targetPos - selfPos);
+                    typedef int (__fastcall * t_TryUseSkill)(void *Base, int skillId, Vector3 dir, bool dirDefault, Vector3 pos, bool bCommonAttack, bool bAlong, bool isInFirstDragRange, bool bIgnoreQueue, uint dragTime);
+                    static t_TryUseSkill TryUseSkill_fn = (t_TryUseSkill)(ShowSelfPlayer_TryUseSkill2);
+                    if (TryUseSkill_fn) {
+                        // Kimmy Double Damage: cast 7113 and 7110 simultaneously
+                        TryUseSkill_fn(selfPlayer, 7113, dir, true, targetPos, false, true, false, false, 0);
+                        TryUseSkill_fn(selfPlayer, 7110, dir, true, targetPos, false, true, false, false, 0);
+                        break;
+                    }
+                }
+            }
+        }
+    }
 
-        auto m_bDeath = *(bool *) ((uintptr_t)values + offset_death);
-        if (m_bDeath) continue;
+    // --- 2. AUTO RETRIBUTION ---
+    if (Config.Auto.Retribution.Enable) {
+        uintptr_t offset_spell = ShowPlayer_m_iSummonSkillId();
+        if (offset_spell == 0 || offset_spell == (uintptr_t)-1) offset_spell = 0x964;
+        int mySpell = *(int *) (m_LocalPlayerShow + offset_spell);
 
-        auto m_bSameCampType = *(bool *) ((uintptr_t)values + offset_camp);
-        if (m_bSameCampType) continue;
+        if (mySpell == 20020 || (mySpell / 10 == 2002)) {
+            uintptr_t offset_lvl = EntityBase_m_Level();
+            if (offset_lvl == 0 || offset_lvl == (uintptr_t)-1) offset_lvl = 0x198;
+            int m_Level = *(int *) (m_LocalPlayerShow + offset_lvl);
+            if (m_Level <= 0) m_Level = 1;
 
-        auto m_ID = *(int *) ((uintptr_t)values + offset_id);
+            int maxRetriDamage = CalculateRetriDamage(m_Level);
 
-        bool isTarget = false;
-        if (Config.Auto.Retribution.Lord && (m_ID == 2002)) isTarget = true;
-        else if (Config.Auto.Retribution.Turtle && (m_ID == 2003 || m_ID == 2110)) isTarget = true;
-        else if (Config.Auto.Retribution.Buff && (m_ID == 2004 || m_ID == 2005)) isTarget = true;
-        else if (Config.Auto.Retribution.Crab && (m_ID == 2011 || m_ID == 2013)) isTarget = true;
-        else if (Config.Auto.Retribution.Litho && (m_ID == 2056 || m_ID == 2072)) isTarget = true;
-        else if (Config.Auto.Retribution.Crammer && (m_ID == 2008 || m_ID == 2059)) isTarget = true;
+            auto m_dicMonsterShow = *(Dictionary<int, uintptr_t> **) ((uintptr_t)BattleManager_Instance + BattleManager_m_dicMonsterShow());
+            if (m_dicMonsterShow) {
+                uintptr_t offset_hp = EntityBase_m_Hp();
+                if (offset_hp == 0 || offset_hp == (uintptr_t)-1) offset_hp = 0x1ac;
 
-        if (!isTarget) continue;
+                for (int i = 0; i < m_dicMonsterShow->getNumKeys(); i++) {
+                    auto values = m_dicMonsterShow->getValues()[i];
+                    if (!values) continue;
 
-        auto _Position = *(Vector3 *) ((uintptr_t)values + offset_pos);
-        float dist = Vector3::Distance(selfPos, _Position);
+                    auto m_bDeath = *(bool *) ((uintptr_t)values + offset_death);
+                    if (m_bDeath) continue;
 
-        // Retribution cast distance range is ~7.5f units
-        if (dist <= 7.5f) {
-            auto m_Hp = *(int *) ((uintptr_t)values + offset_hp);
-            if (m_Hp > 0 && m_Hp <= maxRetriDamage) {
-                // Instantly cast retribution towards monster!
-                auto dir = Vector3::Normalized(_Position - selfPos);
-                typedef int (__fastcall * t_TryUseSkill)(void *Base, int skillId, Vector3 dir, bool dirDefault, Vector3 pos, bool bCommonAttack, bool bAlong, bool isInFirstDragRange, bool bIgnoreQueue, uint dragTime);
-                static t_TryUseSkill TryUseSkill_fn = (t_TryUseSkill)(ShowSelfPlayer_TryUseSkill2);
-                if (TryUseSkill_fn) {
-                    TryUseSkill_fn(selfPlayer, mySpell, dir, false, Vector3::zero(), true, false, false, false, 0);
-                    break;
+                    auto m_bSameCampType = *(bool *) ((uintptr_t)values + offset_camp);
+                    if (m_bSameCampType) continue;
+
+                    auto m_ID = *(int *) ((uintptr_t)values + offset_id);
+
+                    bool isTarget = false;
+                    if (Config.Auto.Retribution.Lord && (m_ID == 2002)) isTarget = true;
+                    else if (Config.Auto.Retribution.Turtle && (m_ID == 2003 || m_ID == 2110)) isTarget = true;
+                    else if (Config.Auto.Retribution.Buff && (m_ID == 2004 || m_ID == 2005)) isTarget = true;
+                    else if (Config.Auto.Retribution.Crab && (m_ID == 2011 || m_ID == 2013)) isTarget = true;
+                    else if (Config.Auto.Retribution.Litho && (m_ID == 2056 || m_ID == 2072)) isTarget = true;
+                    else if (Config.Auto.Retribution.Crammer && (m_ID == 2008 || m_ID == 2059)) isTarget = true;
+
+                    if (!isTarget) continue;
+
+                    auto _Position = *(Vector3 *) ((uintptr_t)values + offset_pos);
+                    float dist = Vector3::Distance(selfPos, _Position);
+
+                    if (dist <= 7.5f) {
+                        auto m_Hp = *(int *) ((uintptr_t)values + offset_hp);
+                        if (m_Hp > 0 && m_Hp <= maxRetriDamage) {
+                            auto dir = Vector3::Normalized(_Position - selfPos);
+                            typedef int (__fastcall * t_TryUseSkill)(void *Base, int skillId, Vector3 dir, bool dirDefault, Vector3 pos, bool bCommonAttack, bool bAlong, bool isInFirstDragRange, bool bIgnoreQueue, uint dragTime);
+                            static t_TryUseSkill TryUseSkill_fn = (t_TryUseSkill)(ShowSelfPlayer_TryUseSkill2);
+                            if (TryUseSkill_fn) {
+                                TryUseSkill_fn(selfPlayer, mySpell, dir, false, Vector3::zero(), true, false, false, false, 0);
+                                break;
+                            }
+                        }
+                    }
                 }
             }
         }
