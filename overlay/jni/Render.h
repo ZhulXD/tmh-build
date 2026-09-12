@@ -209,11 +209,11 @@ void Render()
 	
     //YaserAntiCrack1();
 	
-    /* Optimized: bypass legacy disk I/O on render thread
-    if (!AttachIconDone) { AttachIcon(); AttachIconDone = true; }
-    if (!AttachSpellDone) { AttachSpell(); AttachSpellDone = true; }
-    if (!AttachRankDone) { AttachRank(); AttachRankDone = true; }
-    */
+    // In-memory texture loading (zero disk I/O, no permission issues)
+    if (!AttachIconDone) {
+        AttachIcon();
+        AttachIconDone = true;
+    }
 	
 	if (!AttachMonsterDone) {
         AttachMonster();   
