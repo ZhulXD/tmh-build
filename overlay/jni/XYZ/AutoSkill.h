@@ -110,9 +110,21 @@ inline void AutoRetributionUpdate(void *selfPlayer) {
                     typedef int (__fastcall * t_TryUseSkill)(void *Base, int skillId, Vector3 dir, bool dirDefault, Vector3 pos, bool bCommonAttack, bool bAlong, bool isInFirstDragRange, bool bIgnoreQueue, uint dragTime);
                     static t_TryUseSkill TryUseSkill_fn = (t_TryUseSkill)(ShowSelfPlayer_TryUseSkill2);
                     if (TryUseSkill_fn) {
-                        // Kimmy Double Damage: cast 7113 and 7110 simultaneously
-                        TryUseSkill_fn(selfPlayer, 7113, dir, true, targetPos, false, true, false, false, 0);
-                        TryUseSkill_fn(selfPlayer, 7110, dir, true, targetPos, false, true, false, false, 0);
+                        // Dynamically obtain Kimmy's true Basic Attack ID from engine
+                        static auto GetCommonAtkData_fn = (void *(*)(void *, bool))(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSelfPlayer", "GetCommonAtkData", 1));
+                        static auto get_SkillID_fn = (int (*)(void *))(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSkillData", "get_m_SkillID", 0));
+                        int basicAtkId = 7100;
+                        if (GetCommonAtkData_fn && get_SkillID_fn) {
+                            void *atkData = GetCommonAtkData_fn(selfPlayer, false);
+                            if (atkData) {
+                                int id = get_SkillID_fn(atkData);
+                                if (id > 0) basicAtkId = id;
+                            }
+                        }
+
+                        // Kimmy Double Basic Attack (Common Attack double-shot, bCommonAttack = true)
+                        TryUseSkill_fn(selfPlayer, basicAtkId, dir, true, targetPos, true, false, false, false, 0);
+                        TryUseSkill_fn(selfPlayer, basicAtkId, dir, true, targetPos, true, false, false, false, 0);
                         break;
                     }
                 }
