@@ -112,33 +112,45 @@ inline void AutoRetributionUpdate(void *selfPlayer) {
                     uint32_t targetGuid = *(uint32_t *) ((uintptr_t)values + offset_guid);
                     auto dir = Vector3::Normalized(targetPos - selfPos);
 
-                    // 1. Resolve dynamic basic attack ID from engine's CommonAtkData
-                    int atkId = 7110;
+                    // 1. Resolve true dynamic Basic Attack ID from ShowSelfPlayer.GetCommonAtkData
                     static auto GetCommonAtkData_fn = (void *(*)(void *, bool))(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSelfPlayer", "GetCommonAtkData", 1));
                     static auto get_SkillID_fn = (int (*)(void *))(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSkillData", "get_m_SkillID", 0));
+                    int realAtkId = 0;
                     if (GetCommonAtkData_fn && get_SkillID_fn) {
-                        void *atkData = GetCommonAtkData_fn(selfPlayer, false);
+                        void *atkData = GetCommonAtkData_fn(selfPlayer, true);
                         if (atkData) {
-                            int id = get_SkillID_fn(atkData);
-                            if (id > 0) atkId = id;
+                            realAtkId = get_SkillID_fn(atkData);
                         }
                     }
 
-                    // 2. Fire dual projectile spray with bCommonAttack = true and bAlong = true (critical for Kimmy shoot-while-moving)
-                    typedef int (__fastcall * t_TryUseSkill)(void *Base, int skillId, Vector3 dir, bool dirDefault, Vector3 pos, bool bCommonAttack, bool bAlong, bool isInFirstDragRange, bool bIgnoreQueue, uint dragTime);
-                    static t_TryUseSkill TryUseSkill_fn = (t_TryUseSkill)(ShowSelfPlayer_TryUseSkill2);
-                    if (TryUseSkill_fn) {
-                        // Double damage: fire both atkId and 7113/7110 as basic attacks along movement
-                        TryUseSkill_fn(selfPlayer, atkId, dir, true, targetPos, true, true, false, true, 0);
-                        TryUseSkill_fn(selfPlayer, 7113, dir, true, targetPos, true, true, false, true, 0);
-                        TryUseSkill_fn(selfPlayer, 7110, dir, true, targetPos, true, true, false, true, 0);
-                    }
-
-                    // 3. Trigger native TryCommonAtk on ShowSelfPlayer
+                    // 2. Trigger native ShowSelfPlayer.TryCommonAtk(targetGuid) twice for double basic attack
                     typedef int (*t_TryCommonAtk)(void *Base, uint32_t targetId);
                     static t_TryCommonAtk TryCommonAtk_fn = (t_TryCommonAtk)(Il2CppGetMethodOffset("Assembly-CSharp.dll", "", "ShowSelfPlayer", "TryCommonAtk", 1));
                     if (TryCommonAtk_fn && targetGuid != 0) {
                         TryCommonAtk_fn(selfPlayer, targetGuid);
+                        TryCommonAtk_fn(selfPlayer, targetGuid);
+                    }
+
+                    // 3. Trigger ShowUnitAIComp.TryCommonAtk(id, lockTower) twice
+                    uintptr_t offset_ai = 0xbb0; // f_ShowSelfPlayer_m_UnitAiComp
+                    void *aiComp = *(void **) ((uintptr_t)selfPlayer + offset_ai);
+                    if (aiComp && targetGuid != 0) {
+                        typedef int (*t_AITryCommonAtk)(void *ai, uint32_t id, bool lockTower);
+                        static t_AITryCommonAtk AITryAtk_fn = (t_AITryCommonAtk)(Il2CppGetMethodOffset("Assembly-CSharp.dll", "Battle", "ShowUnitAIComp", "TryCommonAtk", 2));
+                        if (AITryAtk_fn) {
+                            AITryAtk_fn(aiComp, targetGuid, false);
+                            AITryAtk_fn(aiComp, targetGuid, false);
+                        }
+                    }
+
+                    // 4. If dynamic basic attack ID resolved, trigger directional stream with bCommonAttack=true, bAlong=true
+                    if (realAtkId > 0) {
+                        typedef int (__fastcall * t_TryUseSkill)(void *Base, int skillId, Vector3 dir, bool dirDefault, Vector3 pos, bool bCommonAttack, bool bAlong, bool isInFirstDragRange, bool bIgnoreQueue, uint dragTime);
+                        static t_TryUseSkill TryUseSkill_fn = (t_TryUseSkill)(ShowSelfPlayer_TryUseSkill2);
+                        if (TryUseSkill_fn) {
+                            TryUseSkill_fn(selfPlayer, realAtkId, dir, false, Vector3::zero(), true, true, false, true, 0);
+                            TryUseSkill_fn(selfPlayer, realAtkId, dir, false, Vector3::zero(), true, true, false, true, 0);
+                        }
                     }
                     break;
                 }
