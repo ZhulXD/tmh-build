@@ -87,6 +87,34 @@ bool LoadTextureFromFile(const char* filename, Icon* Image) {
 
     return true;
 }
+
+bool LoadTextureFromMemory(const unsigned char* buffer, int len, Icon* Image) {
+    int image_width = 0;
+    int image_height = 0;
+    unsigned char* image_data = stbi_load_from_memory(buffer, len, &image_width, &image_height, NULL, 4);
+    if (image_data == NULL)
+        return false;
+
+    GLuint image_texture;
+    glGenTextures(1, &image_texture);
+    glBindTexture(GL_TEXTURE_2D, image_texture);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
+    stbi_image_free(image_data);
+
+    Image->texture = image_texture;
+    Image->width = image_width;
+    Image->height = image_height;
+    Image->IsValid = true;
+
+    return true;
+}
+
 // check iconlist
 bool AttachCountryDone;
 void AttachCountry() {
@@ -141,18 +169,14 @@ void AttachMonsterAlert() {
 
 bool AttachIconDone;
 void AttachIcon() {
-	std::string packageName = "com.vng.mlbbvn";
-	std::ifstream input_file("/data/data/" + packageName + "/.bak");
-	if (!input_file.is_open())
-	    packageName = "com.mobile.legends";
-	int size = sizeof(iconHeroList) / sizeof(iconHeroList[0]);
-	for (int i = 0;i < size;i++) {
-        Icon Test;
-        string Path = "/data/data/" + packageName + "/files/";
-        Path += to_string(i);
-        writeToFile(Path, base64::from_base64(IconAssets(i)));
-        Test.IsValid = LoadTextureFromFile(Path.c_str(), &Test);
-        std::remove(Path.c_str());
+    HeroIcon.clear();
+    int size = sizeof(iconHeroList) / sizeof(iconHeroList[0]);
+    for (int i = 0; i < size; i++) {
+        Icon Test{0, false, 0, 0};
+        std::string raw = base64::from_base64(IconAssets(i));
+        if (!raw.empty()) {
+            LoadTextureFromMemory((const unsigned char*)raw.data(), (int)raw.size(), &Test);
+        }
         HeroIcon.push_back(Test);
     }
 }
