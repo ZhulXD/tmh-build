@@ -404,7 +404,7 @@ void DrawMenu() {
 				if (ImGui::BeginTabItem("Auto")) {
                     float availW = ImGui::GetContentRegionAvail().x;
                     float colW = (availW - 12.0f) * 0.5f;
-                    float childH = 260.0f; // Fixed height prevents infinite downward auto-resize stretch
+                    float childH = 260.0f; // Fixed height prevents infinite auto-resize stretch
                     bool inBattle = IsPlayerInBattle();
 
                     // --- Left Column: Hero Function ---
@@ -413,8 +413,22 @@ void DrawMenu() {
                         ImGui::Text("HERO FUNCTION");
                         ImGui::Separator();
                         ImGui::Spacing();
-                        // Transparent white text for hero placeholder
-                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 0.45f), "Features will appear in the game");
+
+                        if (!inBattle) {
+                            ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 0.45f), "Features will appear in the game");
+                        } else {
+                            int myHeroID = GetLocalPlayerHeroID();
+                            if (myHeroID == 71) {
+                                ImGui::Text("Hero: Kimmy");
+                                ImGui::Spacing();
+                                ImGui::Checkbox("Kimmy Double Damage", &Config.Auto.Hero.KimmyDoubleDamage);
+                            } else {
+                                std::string hName = (myHeroID > 0) ? HeroToString(myHeroID) : "Hero";
+                                ImGui::Text("Hero: %s", hName.c_str());
+                                ImGui::Spacing();
+                                ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 0.45f), "Features will appear in the game");
+                            }
+                        }
                     }
                     ImGui::EndChild();
 
@@ -428,7 +442,6 @@ void DrawMenu() {
                         ImGui::Spacing();
 
                         if (!inBattle) {
-                            // Do not show any checkboxes outside battle as requested
                             ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 0.45f), "Features will appear in the game");
                         } else {
                             int activeSpell = GetLocalPlayerSpell();
